@@ -13,7 +13,7 @@ import (
 )
 
 // CreateVcloudDatacenter : Creates a VCloud datacenter
-func (m *Manager) CreateVcloudDatacenter(token string, name string, rtype string, user string, password string, url string, network string, vseURL string) (string, error) {
+func (m *Manager) CreateVcloudDatacenter(token, name, rtype, user, password, url, network, vseURL string) (string, error) {
 	payload := []byte(`{"name": "` + name + `", "type":"` + rtype + `", "region": "", "username":"` + user + `", "password":"` + password + `", "external_network":"` + network + `", "vcloud_url":"` + url + `", "vse_url":"` + vseURL + `"}`)
 	body, res, err := m.doRequest("/api/datacenters/", "POST", payload, token, "")
 	if err != nil {
@@ -26,8 +26,21 @@ func (m *Manager) CreateVcloudDatacenter(token string, name string, rtype string
 }
 
 // CreateAWSDatacenter : Creates an AWS datacenter
-func (m *Manager) CreateAWSDatacenter(token string, name string, rtype string, region string, awsAccessKeyID string, awsSecretAccessKey string) (string, error) {
+func (m *Manager) CreateAWSDatacenter(token, name, rtype, region, awsAccessKeyID, awsSecretAccessKey string) (string, error) {
 	payload := []byte(`{"name": "` + name + `", "type":"` + rtype + `", "region":"` + region + `", "username":"` + name + `", "aws_access_key_id":"` + awsAccessKeyID + `", "aws_secret_access_key":"` + awsSecretAccessKey + `"}`)
+	body, res, err := m.doRequest("/api/datacenters/", "POST", payload, token, "")
+	if err != nil {
+		if res.StatusCode == 409 {
+			return "Datacenter '" + name + "' already exists, please specify a different name", err
+		}
+		return body, err
+	}
+	return body, err
+}
+
+// CreateAzureDatacenter : Creates an Azure datacenter
+func (m *Manager) CreateAzureDatacenter(token, name, rtype, subscription, client, secret, tenant, environment string) (string, error) {
+	payload := []byte(`{"name": "` + name + `", "type":"` + rtype + `", "azure_subscription_id": "` + subscription + `", "azure_client_id":"` + client + `", "azure_client_secret":"` + secret + `", "azure_tenant_id":"` + tenant + `", "azure_environment":"` + environment + `"}`)
 	body, res, err := m.doRequest("/api/datacenters/", "POST", payload, token, "")
 	if err != nil {
 		if res.StatusCode == 409 {

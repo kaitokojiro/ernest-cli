@@ -17,6 +17,41 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+// UpdateDatacenters : Will update the datacenter specific fields
+var UpdateDatacenters = cli.Command{
+	Name:        "update",
+	Usage:       "Updates an existing datacenter.",
+	Description: "Update an existing datacenter on the targeted instance of Ernest.",
+	Subcommands: []cli.Command{
+		UpdateVCloudDatacenter,
+		UpdateAWSDatacenter,
+	},
+}
+
+// CreateDatacenters ...
+var CreateDatacenters = cli.Command{
+	Name:        "create",
+	Usage:       "Create a new datacenter.",
+	Description: "Create a new datacenter on the targeted instance of Ernest.",
+	Subcommands: []cli.Command{
+		CreateVcloudDatacenter,
+		CreateAWSDatacenter,
+		CreateAzureDatacenter,
+	},
+}
+
+// CmdDatacenter ...
+var CmdDatacenter = cli.Command{
+	Name:  "datacenter",
+	Usage: "Datacenter related subcommands",
+	Subcommands: []cli.Command{
+		ListDatacenters,
+		CreateDatacenters,
+		UpdateDatacenters,
+		DeleteDatacenter,
+	},
+}
+
 // ListDatacenters ...
 var ListDatacenters = cli.Command{
 	Name:      "list",
@@ -320,6 +355,156 @@ var CreateVcloudDatacenter = cli.Command{
 	},
 }
 
+// CreateAzureDatacenter : Creates an AWS datacenter
+var CreateAzureDatacenter = cli.Command{
+	Name:  "azure",
+	Usage: "Create a new azure datacenter.",
+	Description: `Create a new Azure datacenter on the targeted instance of Ernest.
+
+	Example:
+	 $ ernest-cli datacenter create azure --subscription_id XXXXXXX-XXXX-XXXX-XXXXXXXXXXXXXXXX --client_id XXXXXXX-XXXX-XXXX-XXXXXXXXXXXXXXXX --client_secret XXxxxXxXxXXXxxXXXXXxxXxxXxxxXxXxXxXxXxxxX= --tenant_id XXXXXXX-XXXX-XXXX-XXXXXXXXXXXXXXXX --environment public my_azure_datacenter_name""
+
+   Template example:
+    $ ernest datacenter create azure --template mydatacenter.yml mydatacenter
+    Where mydatacenter.yaml will look like:
+      ---
+			subscription_id: XXXXXXX-XXXX-XXXX-XXXXXXXXXXXXXXXX
+			client_id: XXXXXXX-XXXX-XXXX-XXXXXXXXXXXXXXXX
+			client_secret: XXxxxXxXxXXXxxXXXXXxxXxxXxxxXxXxXxXxXxxxX=
+			tenant_id: XXXXXXX-XXXX-XXXX-XXXXXXXXXXXXXXXX
+			environment public 
+	 `,
+	ArgsUsage: "<datacenter-name>",
+	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name:  "subscription_id, s",
+			Value: "",
+			Usage: "The azure subscription ID to use.",
+		},
+		cli.StringFlag{
+			Name:  "client_id, ci",
+			Value: "",
+			Usage: "The client ID to use.",
+		},
+		cli.StringFlag{
+			Name:  "client_secret, cs",
+			Value: "",
+			Usage: "The client secret to use.",
+		},
+		cli.StringFlag{
+			Name:  "tenant_id, t",
+			Value: "",
+			Usage: "The tenant ID to use.",
+		},
+		cli.StringFlag{
+			Name:  "template",
+			Value: "",
+			Usage: "Datacenter template",
+		},
+		cli.StringFlag{
+			Name:  "environment, e",
+			Value: "public",
+			Usage: "Fake datacenter",
+		},
+		cli.BoolFlag{
+			Name:  "fake, f",
+			Usage: "Fake datacenter",
+		},
+	},
+	Action: func(c *cli.Context) error {
+		var errs []string
+		var subscription, client, secret, tenant, environment string
+		var fake bool
+		m, cfg := setup(c)
+
+		if len(c.Args()) < 1 {
+			msg := "You should specify the datacenter name"
+			color.Red(msg)
+			return nil
+		}
+
+		if cfg.Token == "" {
+			color.Red("You're not allowed to perform this action, please log in")
+			return nil
+		}
+		name := c.Args()[0]
+
+		template := c.String("template")
+		if template != "" {
+			var t model.DatacenterTemplate
+			if err := getDatacenterTemplate(template, &t); err != nil {
+				color.Red(err.Error())
+				return nil
+			}
+			subscription = t.SubscriptionID
+			secret = t.ClientSecret
+			client = t.ClientID
+			tenant = t.TenantID
+			environment = t.Environment
+			fake = t.Fake
+		}
+		if c.String("subscription_id") != "" {
+			subscription = c.String("subscription_id")
+		}
+		if c.String("client_id") != "" {
+			client = c.String("client_id")
+		}
+		if c.String("client_secret") != "" {
+			secret = c.String("client_secret")
+		}
+		if c.String("tenant_id") != "" {
+			tenant = c.String("tenant_id")
+		}
+		if c.String("environment") != "" {
+			environment = c.String("environment")
+		}
+		if fake == false {
+			fake = c.Bool("fake")
+		}
+
+		if subscription == "" {
+			errs = append(errs, "Specify a valid subscription id with --subscription_id flag")
+		}
+
+		if client == "" {
+			errs = append(errs, "Specify a valid client id id with --client_id flag")
+		}
+
+		if secret == "" {
+			errs = append(errs, "Specify a valid client secret with --client_secret flag")
+		}
+
+		if tenant == "" {
+			errs = append(errs, "Specify a valid tenant id with --tenant_id flag")
+		}
+
+		if environment != "public" && environment != "usgovernment" && environment != "german" && environment != "china" {
+			errs = append(errs, "Specify a valid environment with --environment flag. Valid values are public, usgovernment, german and china")
+		}
+
+		if len(errs) > 0 {
+			color.Red("Please, fix the error shown below to continue")
+			for _, e := range errs {
+				fmt.Println("  - " + e)
+			}
+			return nil
+		}
+
+		rtype := "azure"
+
+		if fake {
+			rtype = "azure-fake"
+		}
+		body, err := m.CreateAzureDatacenter(cfg.Token, name, rtype, subscription, client, secret, tenant, environment)
+		if err != nil {
+			color.Red(body)
+		} else {
+			color.Green("Datacenter '" + name + "' successfully created ")
+		}
+		return nil
+	},
+}
+
 // DeleteDatacenter : Datacenter deletion command definition
 var DeleteDatacenter = cli.Command{
 	Name:      "delete",
@@ -476,40 +661,6 @@ var UpdateAWSDatacenter = cli.Command{
 		color.Green("Datacenter " + name + " successfully updated")
 
 		return nil
-	},
-}
-
-// UpdateDatacenters : Will update the datacenter specific fields
-var UpdateDatacenters = cli.Command{
-	Name:        "update",
-	Usage:       "Updates an existing datacenter.",
-	Description: "Update an existing datacenter on the targeted instance of Ernest.",
-	Subcommands: []cli.Command{
-		UpdateVCloudDatacenter,
-		UpdateAWSDatacenter,
-	},
-}
-
-// CreateDatacenters ...
-var CreateDatacenters = cli.Command{
-	Name:        "create",
-	Usage:       "Create a new datacenter.",
-	Description: "Create a new datacenter on the targeted instance of Ernest.",
-	Subcommands: []cli.Command{
-		CreateVcloudDatacenter,
-		CreateAWSDatacenter,
-	},
-}
-
-// CmdDatacenter ...
-var CmdDatacenter = cli.Command{
-	Name:  "datacenter",
-	Usage: "Datacenter related subcommands",
-	Subcommands: []cli.Command{
-		ListDatacenters,
-		CreateDatacenters,
-		UpdateDatacenters,
-		DeleteDatacenter,
 	},
 }
 

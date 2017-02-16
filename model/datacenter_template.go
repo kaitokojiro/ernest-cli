@@ -15,4 +15,10 @@ type DatacenterTemplate struct {
 	Secret   string `yaml:"access_key_id "`
 	Region   string `yaml:"region"`
 	Fake     bool   `yaml:"fake"`
+	// Azure
+	SubscriptionID string `yaml:"subscription_id"`
+	ClientID       string `yaml:"client_id"`
+	ClientSecret   string `yaml:"client_secret"`
+	TenantID       string `yaml:"tenant_id"`
+	Environment    string `yaml:"environment"`
 }
